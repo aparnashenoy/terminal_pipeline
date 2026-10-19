@@ -15,12 +15,21 @@ Key concepts to notice vs. the cron version:
   - Data is passed between tasks via return values (Airflow's "XCom" under the hood)
 """
 
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
 from airflow.decorators import dag, task
 
-PROJECT_DIR = Path("/home/claude/terminal_pipeline")
+# When copied to Airflow's DAG folder, point this at the project/data checkout.
+# Configure the same absolute path on the scheduler and every worker.
+_project_dir = os.environ.get("TERMINAL_PIPELINE_PROJECT_DIR")
+PROJECT_DIR = (
+    Path(_project_dir).expanduser() if _project_dir else Path(__file__).resolve().parent
+)
+if not PROJECT_DIR.is_absolute():
+    raise ValueError("TERMINAL_PIPELINE_PROJECT_DIR must be an absolute path")
+PROJECT_DIR = PROJECT_DIR.resolve()
 
 
 def alert_on_failure(context):
@@ -35,7 +44,7 @@ def alert_on_failure(context):
     task_id = context["task_instance"].task_id
     dag_id = context["dag"].dag_id
     exception = context.get("exception")
-    print(f"ALERT: Task '{task_id}' in DAG '{dag_id}' failed after all retries. Error: {exception}")
+    print(f"LOG-ONLY ALERT (no email/Slack sent): Task '{task_id}' in DAG '{dag_id}' failed after all retries. Error: {exception}")
     # Production version: notifier.send_failure_alert(task_id, dag_id, exception)
 
 
